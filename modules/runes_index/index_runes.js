@@ -28,7 +28,7 @@ var db_pool = new Pool({
 })
 
 var chain_folder = process.env.BITCOIN_CHAIN_FOLDER || "~/.bitcoin/"
-var bitcoin_rpc_user = process.env.BITCOIN_RPC_USER || ""
+var bitcoin_rpc_username = process.env.BITCOIN_RPC_USER || ""
 var bitcoin_rpc_password = process.env.BITCOIN_RPC_PASSWD || ""
 var bitcoin_rpc_url = process.env.BITCOIN_RPC_URL || ""
 
