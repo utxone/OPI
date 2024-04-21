@@ -139,8 +139,8 @@ async function main_index() {
       rpc_argument = " --rpc-url " + bitcoin_rpc_url
     }
 
-    if (bitcoin_rpc_user != "") {
-      rpc_argument += " --bitcoin-rpc-user " + bitcoin_rpc_user + " --bitcoin-rpc-pass " + bitcoin_rpc_password
+    if (bitcoin_rpc_username != "") {
+      rpc_argument += " --bitcoin-rpc-username " + bitcoin_rpc_user + " --bitcoin-rpc-pass " + bitcoin_rpc_password
     }
     let network_argument = ""
     if (network == bitcoin.networks.signet) {
