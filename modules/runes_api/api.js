@@ -180,8 +180,8 @@ app.get('/v1/runes/get_unspent_rune_outpoints_of_wallet', async (request, respon
     }
 
     let current_block_height = await get_block_height_of_db()
-    let query = ` select pkscript, wallet_addr, rotb.outpoint, rotb.rune_ids, rotb.balances
-                  from runes_outpoint_to_balances rotb
+    let query = ` select pkscript, wallet_addr, rotb.outpoint, rotb.rune_ids, rotb.balances, JSON_AGG(rite.rune_name) as rune_names
+                  from runes_outpoint_to_balances rotb left join runes_id_to_entry rite on rite.rune_id = any(rotb.rune_ids)
                   where ` + pkscript_selector + ` = $1 and spent = false;`
     let params = [pkscript_selector_value]
 
