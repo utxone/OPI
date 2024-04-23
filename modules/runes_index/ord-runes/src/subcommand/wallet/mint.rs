@@ -42,7 +42,7 @@ impl Mint {
     let postage = self.postage.unwrap_or(TARGET_POSTAGE);
 
     let amount = rune_entry
-      .mintable(block_height + 1)
+      .mintable(block_height)
       .map_err(|err| anyhow!("rune {rune} {err}"))?;
 
     let chain = wallet.chain();

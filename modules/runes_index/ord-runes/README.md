@@ -87,19 +87,10 @@ command line.
 Building
 --------
 
-On Linux, `ord` requires `libssl-dev` when building from source.
-
-On Debian-derived Linux distributions, including Ubuntu:
+On Debian and Ubuntu, `ord` requires `libssl-dev` when building from source:
 
 ```
 sudo apt-get install pkg-config libssl-dev build-essential
-```
-
-On Red Hat-derived Linux distributions:
-
-```
-yum install -y pkgconfig openssl-devel
-yum groupinstall "Development Tools"
 ```
 
 You'll also need Rust:

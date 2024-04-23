@@ -10,12 +10,11 @@ pub use crate::templates::{
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Block {
-  pub best_height: u32,
   pub hash: BlockHash,
+  pub target: BlockHash,
+  pub best_height: u32,
   pub height: u32,
   pub inscriptions: Vec<InscriptionId>,
-  pub runes: Vec<SpacedRune>,
-  pub target: BlockHash,
 }
 
 impl Block {
@@ -24,7 +23,6 @@ impl Block {
     height: Height,
     best_height: Height,
     inscriptions: Vec<InscriptionId>,
-    runes: Vec<SpacedRune>,
   ) -> Self {
     Self {
       hash: block.header.block_hash(),
@@ -32,7 +30,6 @@ impl Block {
       height: height.0,
       best_height: best_height.0,
       inscriptions,
-      runes,
     }
   }
 }

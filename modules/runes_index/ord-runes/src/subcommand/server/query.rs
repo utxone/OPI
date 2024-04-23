@@ -50,11 +50,9 @@ impl Display for Inscription {
   }
 }
 
-#[derive(Debug)]
 pub(super) enum Rune {
-  Spaced(SpacedRune),
-  Id(RuneId),
-  Number(u64),
+  SpacedRune(SpacedRune),
+  RuneId(RuneId),
 }
 
 impl FromStr for Rune {
@@ -62,11 +60,9 @@ impl FromStr for Rune {
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     if s.contains(':') {
-      Ok(Self::Id(s.parse()?))
-    } else if re::RUNE_NUMBER.is_match(s) {
-      Ok(Self::Number(s.parse()?))
+      Ok(Self::RuneId(s.parse()?))
     } else {
-      Ok(Self::Spaced(s.parse()?))
+      Ok(Self::SpacedRune(s.parse()?))
     }
   }
 }

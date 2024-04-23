@@ -54,10 +54,7 @@ fn wallet_resume() {
       .read_line(&mut buffer)
       .unwrap();
 
-    assert_regex_match!(
-      buffer,
-      "Waiting for rune AAAAAAAAAAAAA commitment [[:xdigit:]]{64} to mature…\n"
-    );
+    assert_regex_match!(buffer, "Waiting for rune commitment .* to mature…\n");
 
     core.mine_blocks(1);
 
@@ -83,11 +80,21 @@ fn wallet_resume() {
 
   core.mine_blocks(6);
 
-  let output = CommandBuilder::new("--regtest --index-runes wallet resume")
+  let mut spawn = CommandBuilder::new("--regtest --index-runes wallet resume")
     .temp_dir(tempdir)
     .core(&core)
     .ord(&ord)
-    .run_and_deserialize_output::<ord::subcommand::wallet::resume::ResumeOutput>();
+    .spawn();
+
+  let mut buffer = String::new();
+
+  BufReader::new(spawn.child.stderr.as_mut().unwrap())
+    .read_line(&mut buffer)
+    .unwrap();
+
+  assert_regex_match!(buffer, "Waiting for rune commitment .* to mature…\n");
+
+  let output = spawn.run_and_deserialize_output::<ord::subcommand::wallet::resume::ResumeOutput>();
 
   assert_eq!(
     output
@@ -153,10 +160,7 @@ fn resume_suspended() {
       .read_line(&mut buffer)
       .unwrap();
 
-    assert_regex_match!(
-      buffer,
-      "Waiting for rune AAAAAAAAAAAAA commitment [[:xdigit:]]{64} to mature…\n"
-    );
+    assert_regex_match!(buffer, "Waiting for rune commitment .* to mature…\n");
 
     core.mine_blocks(1);
 
@@ -186,7 +190,15 @@ fn resume_suspended() {
     .ord(&ord)
     .spawn();
 
-  thread::sleep(Duration::from_secs(1));
+  let mut buffer = String::new();
+
+  BufReader::new(spawn.child.stderr.as_mut().unwrap())
+    .read_line(&mut buffer)
+    .unwrap();
+
+  assert_regex_match!(buffer, "Waiting for rune commitment .* to mature…\n");
+
+  buffer.clear();
 
   signal::kill(
     Pid::from_raw(spawn.child.id().try_into().unwrap()),
@@ -194,78 +206,14 @@ fn resume_suspended() {
   )
   .unwrap();
 
-  let mut buffer = String::new();
-  let mut reader = BufReader::new(spawn.child.stderr.as_mut().unwrap());
-  reader.read_line(&mut buffer).unwrap();
+  BufReader::new(spawn.child.stderr.as_mut().unwrap())
+    .read_line(&mut buffer)
+    .unwrap();
 
   assert_eq!(
     buffer,
     "Shutting down gracefully. Press <CTRL-C> again to shutdown immediately.\n"
   );
-
-  spawn.child.wait().unwrap();
-}
-
-#[test]
-fn commitment_output_is_locked() {
-  let core = mockcore::builder().network(Network::Regtest).build();
-
-  let ord = TestServer::spawn_with_server_args(&core, &["--regtest", "--index-runes"], &[]);
-
-  create_wallet(&core, &ord);
-
-  core.mine_blocks(1);
-
-  let batchfile = batch::File {
-    etching: Some(batch::Etching {
-      divisibility: 0,
-      rune: SpacedRune {
-        rune: Rune(RUNE),
-        spacers: 0,
-      },
-      supply: "1000".parse().unwrap(),
-      premine: "1000".parse().unwrap(),
-      symbol: '¢',
-      ..default()
-    }),
-    inscriptions: vec![batch::Entry {
-      file: Some("inscription.jpeg".into()),
-      ..default()
-    }],
-    ..default()
-  };
-
-  let tempdir = Arc::new(TempDir::new().unwrap());
-
-  let mut spawn =
-    CommandBuilder::new("--regtest --index-runes wallet batch --fee-rate 0 --batch batch.yaml")
-      .temp_dir(tempdir.clone())
-      .write("batch.yaml", serde_yaml::to_string(&batchfile).unwrap())
-      .write("inscription.jpeg", "inscription")
-      .core(&core)
-      .ord(&ord)
-      .expected_exit_code(1)
-      .spawn();
-
-  let mut buffer = String::new();
-  BufReader::new(spawn.child.stderr.as_mut().unwrap())
-    .read_line(&mut buffer)
-    .unwrap();
-
-  assert_regex_match!(
-    buffer,
-    "Waiting for rune AAAAAAAAAAAAA commitment [[:xdigit:]]{64} to mature…\n"
-  );
-
-  let commitment = core.mempool()[0].txid();
-
-  core.mine_blocks(1);
-
-  signal::kill(
-    Pid::from_raw(spawn.child.id().try_into().unwrap()),
-    Signal::SIGINT,
-  )
-  .unwrap();
 
   buffer.clear();
 
@@ -275,13 +223,10 @@ fn commitment_output_is_locked() {
 
   assert_eq!(
     buffer,
-    "Shutting down gracefully. Press <CTRL-C> again to shutdown immediately.\n"
+    "Suspending batch. Run `ord wallet resume` to continue.\n"
   );
 
-  spawn.child.wait().unwrap();
+  let output = spawn.run_and_deserialize_output::<ord::subcommand::wallet::resume::ResumeOutput>();
 
-  assert!(core.get_locked().contains(&OutPoint {
-    txid: commitment,
-    vout: 0
-  }));
+  assert!(!output.etchings.first().unwrap().reveal_broadcast);
 }

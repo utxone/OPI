@@ -27,22 +27,22 @@ impl Runestone {
       Some(Payload::Valid(payload)) => payload,
       Some(Payload::Invalid(flaw)) => {
         return Some(Artifact::Cenotaph(Cenotaph {
-          flaw: Some(flaw),
+          flaws: flaw.into(),
           ..default()
         }));
       }
       None => return None,
     };
 
-    let Ok(integers) = Runestone::integers(&payload) else {
+    let Some(integers) = Runestone::integers(&payload) else {
       return Some(Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::Varint),
+        flaws: Flaw::Varint.into(),
         ..default()
       }));
     };
 
     let Message {
-      mut flaw,
+      mut flaws,
       edicts,
       mut fields,
     } = Message::from_integers(transaction, &integers);
@@ -99,20 +99,20 @@ impl Runestone {
       .map(|etching| etching.supply().is_none())
       .unwrap_or_default()
     {
-      flaw.get_or_insert(Flaw::SupplyOverflow);
+      flaws |= Flaw::SupplyOverflow.flag();
     }
 
     if flags != 0 {
-      flaw.get_or_insert(Flaw::UnrecognizedFlag);
+      flaws |= Flaw::UnrecognizedFlag.flag();
     }
 
     if fields.keys().any(|tag| tag % 2 == 0) {
-      flaw.get_or_insert(Flaw::UnrecognizedEvenTag);
+      flaws |= Flaw::UnrecognizedEvenTag.flag();
     }
 
-    if let Some(flaw) = flaw {
+    if flaws != 0 {
       return Some(Artifact::Cenotaph(Cenotaph {
-        flaw: Some(flaw),
+        flaws,
         mint,
         etching: etching.and_then(|etching| etching.rune),
       }));
@@ -233,7 +233,7 @@ impl Runestone {
     None
   }
 
-  fn integers(payload: &[u8]) -> Result<Vec<u128>, varint::Error> {
+  fn integers(payload: &[u8]) -> Option<Vec<u128>> {
     let mut integers = Vec::new();
     let mut i = 0;
 
@@ -243,7 +243,7 @@ impl Runestone {
       i += length;
     }
 
-    Ok(integers)
+    Some(integers)
   }
 }
 
@@ -451,7 +451,7 @@ mod tests {
       })
       .unwrap(),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::Opcode),
+        flaws: Flaw::Opcode.into(),
         ..default()
       }),
     );
@@ -475,7 +475,7 @@ mod tests {
       })
       .unwrap(),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::Opcode),
+        flaws: Flaw::Opcode.into(),
         ..default()
       }),
     );
@@ -623,7 +623,7 @@ mod tests {
         0
       ]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::UnrecognizedFlag),
+        flaws: Flaw::UnrecognizedFlag.into(),
         ..default()
       }),
     );
@@ -636,7 +636,7 @@ mod tests {
       assert_eq!(
         decipher(integers),
         Artifact::Cenotaph(Cenotaph {
-          flaw: Some(Flaw::UnrecognizedEvenTag),
+          flaws: Flaw::UnrecognizedEvenTag.into(),
           ..default()
         }),
       );
@@ -766,7 +766,7 @@ mod tests {
       })
       .unwrap(),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::Varint),
+        flaws: Flaw::Varint.into(),
         ..default()
       }),
     );
@@ -789,7 +789,7 @@ mod tests {
         0,
       ]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::UnrecognizedEvenTag),
+        flaws: Flaw::UnrecognizedEvenTag.into(),
         etching: Some(Rune(4)),
         ..default()
       }),
@@ -848,7 +848,7 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::Cenotaph.into(), 0, Tag::Body.into(), 1, 1, 2, 0]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::UnrecognizedEvenTag),
+        flaws: Flaw::UnrecognizedEvenTag.flag(),
         ..default()
       }),
     );
@@ -867,7 +867,7 @@ mod tests {
         0
       ]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::UnrecognizedFlag),
+        flaws: Flaw::UnrecognizedFlag.flag(),
         ..default()
       }),
     );
@@ -878,7 +878,7 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::Body.into(), 0, 1, 2, 0]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::EdictRuneId),
+        flaws: Flaw::EdictRuneId.into(),
         ..default()
       }),
     );
@@ -889,7 +889,7 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::Body.into(), 1, 0, 0, 0, u64::MAX.into(), 0, 0, 0]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::EdictRuneId),
+        flaws: Flaw::EdictRuneId.into(),
         ..default()
       }),
     );
@@ -897,7 +897,7 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::Body.into(), 1, 1, 0, 0, 0, u64::MAX.into(), 0, 0]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::EdictRuneId),
+        flaws: Flaw::EdictRuneId.into(),
         ..default()
       }),
     );
@@ -908,7 +908,7 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::Body.into(), 1, 1, 2, 2]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::EdictOutput),
+        flaws: Flaw::EdictOutput.into(),
         ..default()
       }),
     );
@@ -919,7 +919,7 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::Flags.into(), 1, Tag::Flags.into()]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::TruncatedField),
+        flaws: Flaw::TruncatedField.flag(),
         ..default()
       }),
     );
@@ -943,7 +943,7 @@ mod tests {
           })
         } else {
           Artifact::Cenotaph(Cenotaph {
-            flaw: Some(Flaw::TrailingIntegers),
+            flaws: Flaw::TrailingIntegers.into(),
             ..default()
           })
         }
@@ -1139,7 +1139,7 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::Rune.into(), 4]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::UnrecognizedEvenTag),
+        flaws: Flaw::UnrecognizedEvenTag.flag(),
         ..default()
       }),
     );
@@ -1236,7 +1236,7 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::Body.into(), 1, 1, 2, 0, u128::MAX, 1, 0, 0,]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::EdictRuneId),
+        flaws: Flaw::EdictRuneId.flag(),
         ..default()
       }),
     );
@@ -1247,7 +1247,7 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::Body.into(), 1, 1, 2, 0, 1, u128::MAX, 0, 0,]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::EdictRuneId),
+        flaws: Flaw::EdictRuneId.flag(),
         ..default()
       }),
     );
@@ -1640,7 +1640,7 @@ mod tests {
         u128::from(u64::MAX) + 1,
       ]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::UnrecognizedEvenTag),
+        flaws: Flaw::UnrecognizedEvenTag.into(),
         ..default()
       }),
     );
@@ -1830,7 +1830,7 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::Body.into(), 1, 1, 1, u128::from(u32::MAX) + 1]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::EdictOutput),
+        flaws: Flaw::EdictOutput.flag(),
         ..default()
       }),
     );
@@ -1841,7 +1841,7 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::Mint.into(), 1]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::UnrecognizedEvenTag),
+        flaws: Flaw::UnrecognizedEvenTag.flag(),
         ..default()
       }),
     );
@@ -1852,7 +1852,7 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::Mint.into(), 0, Tag::Mint.into(), 1]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::UnrecognizedEvenTag),
+        flaws: Flaw::UnrecognizedEvenTag.flag(),
         ..default()
       }),
     );
@@ -1863,7 +1863,7 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::OffsetEnd.into(), u128::MAX]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::UnrecognizedEvenTag),
+        flaws: Flaw::UnrecognizedEvenTag.flag(),
         ..default()
       }),
     );
@@ -1874,14 +1874,14 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::Pointer.into(), 1]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::UnrecognizedEvenTag),
+        flaws: Flaw::UnrecognizedEvenTag.flag(),
         ..default()
       }),
     );
     assert_eq!(
       decipher(&[Tag::Pointer.into(), u128::MAX]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::UnrecognizedEvenTag),
+        flaws: Flaw::UnrecognizedEvenTag.flag(),
         ..default()
       }),
     );
@@ -1945,7 +1945,7 @@ mod tests {
     assert_eq!(
       decipher(&[Tag::OffsetEnd.into(), u128::MAX]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::UnrecognizedEvenTag),
+        flaws: Flaw::UnrecognizedEvenTag.flag(),
         ..default()
       }),
     );
@@ -1986,7 +1986,7 @@ mod tests {
         u128::MAX
       ]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::SupplyOverflow),
+        flaws: Flaw::SupplyOverflow.into(),
         ..default()
       }),
     );
@@ -2001,7 +2001,7 @@ mod tests {
         u128::MAX / 2 + 1
       ]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::SupplyOverflow),
+        flaws: Flaw::SupplyOverflow.into(),
         ..default()
       }),
     );
@@ -2018,7 +2018,7 @@ mod tests {
         u128::MAX
       ]),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::SupplyOverflow),
+        flaws: Flaw::SupplyOverflow.into(),
         ..default()
       }),
     );
@@ -2099,7 +2099,7 @@ mod tests {
       })
       .unwrap(),
       Artifact::Cenotaph(Cenotaph {
-        flaw: Some(Flaw::InvalidScript),
+        flaws: Flaw::InvalidScript.into(),
         ..default()
       }),
     );
@@ -2177,7 +2177,7 @@ mod tests {
         })
         .unwrap(),
         Artifact::Cenotaph(Cenotaph {
-          flaw: Some(Flaw::Opcode),
+          flaws: Flaw::Opcode.into(),
           ..default()
         }),
       );

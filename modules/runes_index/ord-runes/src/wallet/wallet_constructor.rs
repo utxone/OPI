@@ -33,7 +33,6 @@ impl WalletConstructor {
 
     Self {
       ord_client: reqwest::blocking::ClientBuilder::new()
-        .timeout(None)
         .default_headers(headers.clone())
         .build()?,
       name,
@@ -55,9 +54,7 @@ impl WalletConstructor {
         client.load_wallet(&self.name)?;
       }
 
-      if client.get_wallet_info()?.private_keys_enabled {
-        Wallet::check_descriptors(&self.name, client.list_descriptors(None)?.descriptors)?;
-      }
+      Wallet::check_descriptors(&self.name, client.list_descriptors(None)?.descriptors)?;
 
       client
     };
@@ -191,18 +188,14 @@ impl WalletConstructor {
     let mut utxos = BTreeMap::new();
 
     for outpoint in outpoints {
-      let Some(tx_out) = bitcoin_client.get_tx_out(&outpoint.txid, outpoint.vout, Some(false))?
-      else {
-        continue;
-      };
+      let txout = bitcoin_client
+        .get_raw_transaction(&outpoint.txid, None)?
+        .output
+        .get(TryInto::<usize>::try_into(outpoint.vout).unwrap())
+        .cloned()
+        .ok_or_else(|| anyhow!("Invalid output index"))?;
 
-      utxos.insert(
-        OutPoint::new(outpoint.txid, outpoint.vout),
-        TxOut {
-          value: tx_out.value.to_sat(),
-          script_pubkey: ScriptBuf::from_bytes(tx_out.script_pub_key.hex),
-        },
-      );
+      utxos.insert(OutPoint::new(outpoint.txid, outpoint.vout), txout);
     }
 
     Ok(utxos)
